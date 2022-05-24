@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+function get_next_window_size() {
+    local i next_window_size="${SIZES[0]}" window_size="$(get_window_size)"
+    for i in $(seq 0 $((${#SIZES[@]} - 1)) | tac)
+    do
+        if echo "${window_size}" "${SIZES[i]}" | awk '{ if ($1 >= $2) { exit 0 } else { exit 1 } }' > /dev/null
+        then
+            [ $i -lt $((${#SIZES[@]} - 1)) ] || break
+            echo "${SIZES[$((i + 1))]}"
+            return 0
+        fi
+    done
+
+    echo "${SIZES[0]}"
+}
+
+function get_window_size() {
+    dconf read "${KEY}"
+}
+
+function set_window_size() {
+    dconf write "${KEY}" "${1}"
+}
+
+function help() {
+    cat << EOF
+${0} [OPTION]...
+
+Options:
+    -h                  Show help
+    -s SIZE[,SIZE]...   Specify sizes (default: 0.25,0.5,1.0)
+EOF
+}
+
+declare -r KEY=/com/github/amezin/ddterm/window-size
+declare -a SIZES=(
+    0.25
+    0.5
+    1.0
+)
+
+while getopts 'hs:' OPT
+do
+    case "${OPT}" in
+        h)
+            help
+            exit
+            ;;
+        s)
+            SIZES=($(echo ${OPTARG} | tr , ' '))
+            ;;
+        *)
+            exit 1
+            ;;
+    esac
+done
+
+shift $((${OPTIND} - 1))
+
+WINDOW_SIZE="$(get_window_size)"
+NEXT_WINDOW_SIZE="$(get_next_window_size)"
+
+cat << EOF >&2
+sizes: ${SIZES[@]}
+window_size: ${WINDOW_SIZE}
+next_window_size: ${NEXT_WINDOW_SIZE}
+EOF
+
+set_window_size "${NEXT_WINDOW_SIZE}"
